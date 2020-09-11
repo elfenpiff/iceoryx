@@ -1,4 +1,4 @@
-// Copyright (c) 2019 by Robert Bosch GmbH. All rights reserved.
+// Copyright (c) 2020 by Robert Bosch GmbH. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,22 +11,33 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef IOX_EXAMPLES_ICEDELIVERY_TOPIC_DATA_HPP
-#define IOX_EXAMPLES_ICEDELIVERY_TOPIC_DATA_HPP
 
-#include <cstdint>
+#include "test.hpp"
 
-struct CounterTopic
+#include <iostream>
+
+using namespace ::testing;
+
+class PublisherSampleTest : public Test {
+
+public:
+    PublisherSampleTest()
+    {
+
+    }
+
+    void SetUp()
+    {
+    }
+
+    void TearDown()
+    {
+    }
+
+};
+
+TEST_F(PublisherSampleTest, CanHaveSamplesOfPrimitives)
 {
-    uint32_t counter;
-};
+    // Seems that we cannot have expecteds of primitives ... this is a problem as samples can be primitive types.
+}
 
-struct Position {
-    Position(double_t x, double_t y, double_t z) : x(x), y(y), z(z)
-    {};
-    double_t x = 0.0;
-    double_t y = 0.0;
-    double_t z = 0.0;
-};
-
-#endif // IOX_EXAMPLES_ICEDELIVERY_TOPIC_DATA_HPP
