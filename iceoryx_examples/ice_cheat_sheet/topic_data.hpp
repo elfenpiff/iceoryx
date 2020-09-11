@@ -1,4 +1,4 @@
-// Copyright (c) 2019 by Robert Bosch GmbH. All rights reserved.
+// Copyright (c) 2020 by Robert Bosch GmbH. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,14 +11,15 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef IOX_EXAMPLES_ICEDELIVERY_TOPIC_DATA_HPP
-#define IOX_EXAMPLES_ICEDELIVERY_TOPIC_DATA_HPP
+#ifndef IOX_EXAMPLES_ICE_CHEAT_SHEET_TOPIC_DATA_HPP
+#define IOX_EXAMPLES_ICE_CHEAT_SHEET_TOPIC_DATA_HPP
 
 #include <cstdint>
 
 struct CounterTopic
 {
-    uint32_t counter;
+    uint32_t data;
+    uint64_t hugeData[10];
 };
 
-#endif // IOX_EXAMPLES_ICEDELIVERY_TOPIC_DATA_HPP
+#endif
