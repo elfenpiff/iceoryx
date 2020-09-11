@@ -2,6 +2,7 @@
 
 ## Missing Features
  - untyped publisher custom header? allocateChunkWithHeader
+ - subscriber inherit from condition?
 
 ## UntypedPublisher short
 
