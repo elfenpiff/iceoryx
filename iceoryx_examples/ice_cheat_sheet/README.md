@@ -1,106 +1,63 @@
 # IceOryx Cheat Sheet
 
-## Custom header
+## Missing Features
+ - untyped publisher custom header? allocateChunkWithHeader
 
-## Publisher short
+## UntypedPublisher short
 
-The following definition is assumed for the following table.
-```cpp
-iox::popo::Publisher p ({"MyService", "MyInstance", "MyEvent"});
-```
+- **get unique publisher id**
+- **send raw memory sample**
+- **check offer state**
 
-| task                                      | code |
-|:-----------------------------------------:|:-----|
-|send data                                  | `p.allocateChunk(sizeof(Data)));` |
-|                                           | `p.sendChunk(myData);` |
-|check for subscribers                      | `p.hasSubscribers();` |
-|dismiss chunk without sending              | `p.freeChunk(myData);` |
-|dismiss chunk with custom header without sending | `p.freeChunk(myHeader);` |
-|send data with custom header               | `p.allocateChunkWithHeader(sizeof(Data));` |
-|                                           | `p.sendChunk(myHeader);` |
-|send data with dynamic payload size        | `p.allocateChunk(dynamicSize, true)` |
-|send data with dynamic payload size and custom header | `p.allocateChunkWithHeader(dynamicSize, true)` |
-|offer service                              | `p.offer();` |
-|stop offering service                      | `p.stopOffer();` |
-
-## Publisher detailled
 - **send data**
-  ```cpp
-  iox::runtime::PoshRuntime::getInstance("/myApplicationName");
-  iox::popo::Publisher myPublisher({"MyService", "MyInstance", "MyEvent"});
-  myPublisher.offer();
-
-  while (keepRunning)
-  {
-      auto sample = static_cast<CounterTopic*>(
-          myPublisher.allocateChunk(sizeof(CounterTopic)));
-      sample->data = myData;
-
-      myPublisher.sendChunk(sample);
-  }
-
-  myPublisher.stopOffer();
-  ```
-
-- **send data only when subscribers are present**
-   ```cpp
-   while (keepRunning)
-   {
-       auto sample = static_cast<CounterTopic*>(
-           myPublisher.allocateChunk(sizeof(CounterTopic)));
-       sample->data = myData;
-
-       if (myPublisher.hasSubscribers())
-       {
-           myPublisher.sendChunk(sample);
-       } 
-       else 
-       {
-           myPublisher.freeChunk(sample);
-       }
-   }
-   ```
-
- - **send data with custom header**
-   ```cpp
-    while (keepRunning)
+    ```cpp
+    myPublisher.loan(sizeof(CounterTopic))
+            .and_then([](iox::popo::Sample<void>& sample) {
+                static_cast<CounterTopic*>(sample.get())->data = myData;
+                sample.publish();
+            })
+            .or_else([](const iox::popo::AllocationError& errorValue) {
+                // perform error handling
+            });
+    ```
+- **send data old school**
+    ```cpp
+    auto sample = myPublisher.loan(sizeof(CounterTopic));
+    if (sample.has_error())
     {
-        auto header = myPublisher.allocateChunkWithHeader(sizeof(CounterTopic));
-
-        header->m_info.m_externalSequenceNumber_bl = true;
-        header->m_info.m_sequenceNumber = 42;
-        header->m_info.m_usedSizeOfChunk = 42;
-        header->m_info.m_totalSizeOfChunk = 42;
-        header->m_info.m_payloadSize = 42;
-        header->m_info.m_txTimestamp = std::chrono::steady_clock::now();
-
-        auto sample = static_cast<CounterTopic*>(header->payload());
-        sample->data = myData;
-        myPublisher.sendChunk(header);
+        // perform error handling
     }
-   ```
-
- - **send data with dynamic payload size**
-   ```cpp
-    while (keepRunning)
+    else
     {
-        uint32_t myChangingPayloadSize = sizeof(CounterTopic);
-        auto sample = static_cast<CounterTopic*>(
-            myPublisher.allocateChunk(myChangingPayloadSize, true));
-        sample->data = myData;
-        myPublisher.sendChunk(sample);
+        static_cast<CounterTopic*>(sample->get())->data = myData;
+        myPublisher.publish(*sample);
     }
-   ```
+    ```
 
- - **send data with dynamic payload size and custom header**
-   ```cpp
-    while (keepRunning)
+ - **only send data when there are subscribers**
+    ```cpp
+    if (myPublisher.hasSubscribers())
     {
-        uint32_t myChangingPayloadSize = sizeof(CounterTopic);
-        auto header = myPublisher.allocateChunkWithHeader(myChangingPayloadSize, true);
-        auto sample = static_cast<CounterTopic*>(header->payload());
-        sample->data = myData;
-        myPublisher.sendChunk(sample);
+        myPublisher.loan(sizeof(CounterTopic))
+            .and_then([](iox::popo::Sample<void>& sample) {
+                static_cast<CounterTopic*>(sample.get())->data = myData;
+                sample.publish();
+            });
     }
-   ```
+    ```
  
+ - **dismiss data without sending**
+    ```cpp
+    myPublisher.loan(sizeof(CounterTopic))
+        .and_then([&](iox::popo::Sample<void>& sample) {
+            myPublisher.release(sample);
+        });
+    ```
+
+ - **acquire previous data and change minor contents**
+    ```cpp
+    myPublisher.previousSample().and_then([&](iox::popo::Sample<void>& sample) {
+        static_cast<CounterTopic*>(sample.get())->hugeData[2] = 42;
+        sample.publish();
+    });
+    ```

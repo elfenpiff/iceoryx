@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "iceoryx_posh/popo/publisher.hpp"
+#include "iceoryx_posh/experimental/popo/publisher.hpp"
 #include "iceoryx_posh/runtime/posh_runtime.hpp"
 #include "topic_data.hpp"
 
@@ -24,17 +24,45 @@ std::atomic_bool keepRunning{true};
 uint32_t myData;
 uint32_t myInitialData;
 
-void sendData()
+void sendDataWithErrorHandling()
 {
     iox::runtime::PoshRuntime::getInstance("/myApplicationName");
-    iox::popo::Publisher myPublisher({"MyService", "MyInstance", "MyEvent"});
+    iox::popo::UntypedPublisher myPublisher({"MyService", "MyInstance", "MyEvent"});
     myPublisher.offer();
 
     while (keepRunning)
     {
-        auto sample = static_cast<CounterTopic*>(myPublisher.allocateChunk(sizeof(CounterTopic)));
-        sample->data = myData;
-        myPublisher.sendChunk(sample);
+        myPublisher.loan(sizeof(CounterTopic))
+            .and_then([](iox::popo::Sample<void>& sample) {
+                static_cast<CounterTopic*>(sample.get())->data = myData;
+                sample.publish();
+            })
+            .or_else([](const iox::popo::AllocationError& errorValue) {
+                // perform error handling
+            });
+    }
+
+    myPublisher.stopOffer();
+}
+
+void sendDataWithErrorHandlingOldStyle()
+{
+    iox::runtime::PoshRuntime::getInstance("/myApplicationName");
+    iox::popo::UntypedPublisher myPublisher({"MyService", "MyInstance", "MyEvent"});
+    myPublisher.offer();
+
+    while (keepRunning)
+    {
+        auto sample = myPublisher.loan(sizeof(CounterTopic));
+        if (sample.has_error())
+        {
+            // perform error handling
+        }
+        else
+        {
+            static_cast<CounterTopic*>(sample->get())->data = myData;
+            myPublisher.publish(*sample);
+        }
     }
 
     myPublisher.stopOffer();
@@ -43,104 +71,56 @@ void sendData()
 void sendDataOnlyWithSubscribers()
 {
     iox::runtime::PoshRuntime::getInstance("/myApplicationName");
-    iox::popo::Publisher myPublisher({"MyService", "MyInstance", "MyEvent"});
+    iox::popo::UntypedPublisher myPublisher({"MyService", "MyInstance", "MyEvent"});
     myPublisher.offer();
 
     while (keepRunning)
     {
-        auto sample = static_cast<CounterTopic*>(myPublisher.allocateChunk(sizeof(CounterTopic)));
-        sample->data = myData;
         if (myPublisher.hasSubscribers())
         {
-            myPublisher.sendChunk(sample);
+            myPublisher.loan(sizeof(CounterTopic)).and_then([](iox::popo::Sample<void>& sample) {
+                static_cast<CounterTopic*>(sample.get())->data = myData;
+                sample.publish();
+            });
         }
-        else
-        {
-            myPublisher.freeChunk(sample);
-        }
     }
 
     myPublisher.stopOffer();
 }
 
-void sendDataWithCustomHeader()
+void dismissDataWithoutSending()
 {
     iox::runtime::PoshRuntime::getInstance("/myApplicationName");
-    iox::popo::Publisher myPublisher({"MyService", "MyInstance", "MyEvent"});
+    iox::popo::UntypedPublisher myPublisher({"MyService", "MyInstance", "MyEvent"});
     myPublisher.offer();
 
     while (keepRunning)
     {
-        auto header = myPublisher.allocateChunkWithHeader(sizeof(CounterTopic));
-
-        header->m_info.m_externalSequenceNumber_bl = true;
-        header->m_info.m_sequenceNumber = 42;
-        header->m_info.m_usedSizeOfChunk = 42;
-        header->m_info.m_totalSizeOfChunk = 42;
-        header->m_info.m_payloadSize = 42;
-        header->m_info.m_txTimestamp = std::chrono::steady_clock::now();
-
-        auto sample = static_cast<CounterTopic*>(header->payload());
-        sample->data = myData;
-        myPublisher.sendChunk(header);
+        myPublisher.loan(sizeof(CounterTopic)).and_then([&](iox::popo::Sample<void>& sample) {
+            myPublisher.release(sample);
+        });
     }
 
     myPublisher.stopOffer();
 }
 
-void sendDataWithDynamicPayloadSize()
+void acquirePreviousSendData()
 {
     iox::runtime::PoshRuntime::getInstance("/myApplicationName");
-    iox::popo::Publisher myPublisher({"MyService", "MyInstance", "MyEvent"});
+    iox::popo::UntypedPublisher myPublisher({"MyService", "MyInstance", "MyEvent"});
     myPublisher.offer();
+
+    myPublisher.loan(sizeof(CounterTopic)).and_then([](iox::popo::Sample<void>& sample) {
+        static_cast<CounterTopic*>(sample.get())->data = myData;
+        sample.publish();
+    });
 
     while (keepRunning)
     {
-        uint32_t myChangingPayloadSize = sizeof(CounterTopic);
-        auto sample = static_cast<CounterTopic*>(myPublisher.allocateChunk(myChangingPayloadSize, true));
-        sample->data = myData;
-        myPublisher.sendChunk(sample);
-    }
-
-    myPublisher.stopOffer();
-}
-
-void sendDataWithDynamicPayloadSizeAndCustomHeader()
-{
-    iox::runtime::PoshRuntime::getInstance("/myApplicationName");
-    iox::popo::Publisher myPublisher({"MyService", "MyInstance", "MyEvent"});
-    myPublisher.offer();
-
-    while (keepRunning)
-    {
-        uint32_t myChangingPayloadSize = sizeof(CounterTopic);
-        auto header = myPublisher.allocateChunkWithHeader(myChangingPayloadSize, true);
-        auto sample = static_cast<CounterTopic*>(header->payload());
-        sample->data = myData;
-        myPublisher.sendChunk(sample);
-    }
-
-    myPublisher.stopOffer();
-}
-
-void sendLatestChunkToNewSubscribers()
-{
-    iox::runtime::PoshRuntime::getInstance("/myApplicationName");
-    iox::popo::Publisher myPublisher({"MyService", "MyInstance", "MyEvent"});
-
-    auto sample = static_cast<CounterTopic*>(myPublisher.allocateChunk(sizeof(CounterTopic)));
-    sample->data = myInitialData;
-    myPublisher.sendChunk(sample);
-    myPublisher.enableDoDeliverOnSubscription();
-
-
-    myPublisher.offer();
-
-    while (keepRunning)
-    {
-        auto sample = static_cast<CounterTopic*>(myPublisher.allocateChunk(sizeof(CounterTopic)));
-        sample->data = myData;
-        myPublisher.sendChunk(sample);
+        myPublisher.previousSample().and_then([&](iox::popo::Sample<void>& sample) {
+            static_cast<CounterTopic*>(sample.get())->data = myData;
+            sample.publish();
+        });
     }
 
     myPublisher.stopOffer();
@@ -149,8 +129,7 @@ void sendLatestChunkToNewSubscribers()
 int main()
 {
     // adjust this line to the example you would like to have
-    auto example = sendLatestChunkToNewSubscribers;
-
+    auto example = sendDataWithErrorHandling;
 
     std::thread exampleThread(example);
     std::thread stopMeLater([&] {
