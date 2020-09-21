@@ -4,6 +4,16 @@
  - untyped publisher custom header? allocateChunkWithHeader
  - subscriber inherit from condition?
 
+## Examples
+- **single send, single receive**
+- **dynamic publish subscribe (offer/stop offer mix)**
+  - **subscriber prints message when service is not available**
+  - **only send data when there are subscribers**
+- **send huge chunks efficiently**
+- **1 publisher, 1 subscriber looks for specific service**
+- **n publishers, 1 subscriber looks for specific service**
+- **dismiss data without sending**
+
 ## UntypedPublisher short
 
 - **get unique publisher id**
