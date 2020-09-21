@@ -22,14 +22,13 @@ namespace iox
 {
 namespace cxx
 {
-
 ///
 /// @todo document how it differs to STL
 ///
-template<typename T>
-class unique_ptr{
-public:
-
+template <typename T>
+class unique_ptr
+{
+  public:
     using ptr_t = T*;
 
     unique_ptr() = delete;
@@ -48,14 +47,6 @@ public:
     ///
     unique_ptr(ptr_t ptr, std::function<void(T*)>&& deleter) noexcept;
 
-    ///
-    /// @brief unique_ptr Creates an empty unique pointer that points to an allocated memory location.
-    /// @details The contents of the pointeris initially undefined thus must be defined before accessing.
-    /// @param allocation The allocation of memory where managed object will reside once created.
-    /// @param deleter The deleter function for cleaning up the allocated memory.
-    ///
-//    unique_ptr(void* allocation, std::function<void(T*)>&& deleter) noexcept;
-
     unique_ptr(std::nullptr_t) noexcept;
 
     // Not copy-able to ensure uniqueness.
@@ -66,20 +57,9 @@ public:
     unique_ptr& operator=(unique_ptr&& rhs) noexcept;
 
     ///
-    /// @brief operator = Reset to empty pointer when setting to nullptr.
-    /// @return An empty unique pointer.
-    ///
-    unique_ptr& operator=(std::nullptr_t) noexcept;
-
-    ///
     /// Automatically deletes the owned object on destruction.
     ///
     ~unique_ptr() noexcept;
-
-    ///
-    /// Dereference the stored pointer.
-    ///
-    T operator*() noexcept;
 
     ///
     /// Return the stored pointer.
@@ -89,8 +69,7 @@ public:
     ///
     /// @brief operator bool Returns true if it points to something.
     ///
-    explicit operator bool() const noexcept
-    { return get() == ptr_t() ? false : true; }
+    explicit operator bool() const noexcept;
 
     ///
     /// @brief get Retrieve the underlying raw pointer.
@@ -118,9 +97,9 @@ public:
     ///
     void swap(unique_ptr& other) noexcept;
 
-private:
+  private:
     ptr_t m_ptr = nullptr;
-    std::function<void(T*)> m_deleter = [](T* const){};
+    std::function<void(T* const)> m_deleter;
 };
 
 

@@ -19,18 +19,18 @@
 
 using namespace ::testing;
 
-struct Position {
+struct Position
+{
     double_t x = 0.0;
     double_t y = 0.0;
     double_t z = 0.0;
 };
 
-class UniquePtrTest : public Test {
-
-public:
+class UniquePtrTest : public Test
+{
+  public:
     UniquePtrTest()
     {
-
     }
 
     void SetUp()
@@ -40,43 +40,12 @@ public:
     void TearDown()
     {
     }
-
 };
-
-//TEST_F(UniquePtrTest, CanBeConstructedWithUndefinedBlob)
-//{
-//    auto deleter = [](Position* const p){delete p;};
-//    uint8_t* buf = new uint8_t[sizeof(Position)];
-//    auto ptr = iox::cxx::unique_ptr<Position>(buf, deleter);
-
-//    ptr->x = 10.0;
-//    ptr->y = 77.77;
-//    ptr->z = 50.50;
-//    EXPECT_EQ(10.0, ptr->x);
-//    EXPECT_EQ(77.77, ptr->y);
-//    EXPECT_EQ(50.50, ptr->z);
-//}
-
-//TEST_F(UniquePtrTest, CanBeResetToPointToUndefinedBlob)
-//{
-//    auto deleter = [](Position* const p){delete p;};
-//    auto ptr = iox::cxx::unique_ptr<Position>(deleter);
-
-//    uint8_t* buf = new uint8_t[sizeof(Position)];
-//    ptr.reset(reinterpret_cast<Position*>(buf));
-
-//    ptr->x = 10.0;
-//    ptr->y = 77.77;
-//    ptr->z = 50.50;
-//    EXPECT_EQ(10.0, ptr->x);
-//    EXPECT_EQ(77.77, ptr->y);
-//    EXPECT_EQ(50.50, ptr->z);
-//}
 
 TEST_F(UniquePtrTest, DeleterIsCalledWhenPtrGoesOutOfScope)
 {
     bool deleterCalled = false;
-    auto deleter = [&deleterCalled](Position* const p){
+    auto deleter = [&deleterCalled](Position* const p) {
         deleterCalled = true;
         delete p;
     };
@@ -91,25 +60,20 @@ TEST_F(UniquePtrTest, DeleterIsCalledWhenPtrGoesOutOfScope)
 
 TEST_F(UniquePtrTest, DeleterIsProperlySet)
 {
-
 }
 
 TEST_F(UniquePtrTest, DeleterNotCalledOnReleasedPointers)
 {
-
 }
 
 TEST_F(UniquePtrTest, DeleterNotCalledOnNullptrs)
 {
-
 }
 
 TEST_F(UniquePtrTest, CanResetToNullptr)
 {
-
 }
 
 TEST_F(UniquePtrTest, CanResetToAnExistingRawPtr)
 {
-
 }
