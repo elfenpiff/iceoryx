@@ -27,10 +27,10 @@ struct DummyData
 
 using TestTypedPublisher = iox::popo::TypedPublisher<DummyData, MockBasePublisher<DummyData>>;
 
-class ExperimentalTypedPublisherTest : public Test
+class TypedPublisherTest : public Test
 {
   public:
-    ExperimentalTypedPublisherTest()
+    TypedPublisherTest()
     {
     }
 
@@ -46,7 +46,7 @@ class ExperimentalTypedPublisherTest : public Test
     TestTypedPublisher sut{{"", "", ""}};
 };
 
-TEST_F(ExperimentalTypedPublisherTest, LoansSamplesLargeEnoughForTheType)
+TEST_F(TypedPublisherTest, LoansSamplesLargeEnoughForTheType)
 {
     // ===== Setup ===== //
     auto chunk =
@@ -68,7 +68,7 @@ TEST_F(ExperimentalTypedPublisherTest, LoansSamplesLargeEnoughForTheType)
     iox::cxx::alignedFree(chunk);
 }
 
-TEST_F(ExperimentalTypedPublisherTest, GetsUIDViaBasePublisher)
+TEST_F(TypedPublisherTest, GetsUIDViaBasePublisher)
 {
     // ===== Setup ===== //
     EXPECT_CALL(sut, getUid).Times(1);
@@ -78,7 +78,7 @@ TEST_F(ExperimentalTypedPublisherTest, GetsUIDViaBasePublisher)
     // ===== Cleanup ===== //
 }
 
-TEST_F(ExperimentalTypedPublisherTest, PublishesSampleViaBasePublisher)
+TEST_F(TypedPublisherTest, PublishesSampleViaBasePublisher)
 {
     // ===== Setup ===== //
     auto chunk =
@@ -99,13 +99,13 @@ TEST_F(ExperimentalTypedPublisherTest, PublishesSampleViaBasePublisher)
     iox::cxx::alignedFree(chunk);
 }
 
-TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfALambdaWithAdditionalArguments)
+TEST_F(TypedPublisherTest, CanLoanSamplesAndPublishTheResultOfALambdaWithAdditionalArguments)
 {
     // ===== Setup ===== //
     auto chunk =
-        reinterpret_cast<iox::mepoo::ChunkHeader*>(iox::cxx::alignedAlloc(32, sizeof(iox::mepoo::ChunkHeader)));
+        reinterpret_cast<iox::mepoo::ChunkHeader*>(iox::cxx::alignedAlloc(32, sizeof(iox::mepoo::ChunkHeader) + sizeof(DummyData)));
     auto sample = new iox::popo::Sample<DummyData>(
-        iox::cxx::unique_ptr<DummyData>(reinterpret_cast<DummyData*>(reinterpret_cast<DummyData*>(chunk->payload())),
+        iox::cxx::unique_ptr<DummyData>(reinterpret_cast<DummyData*>(chunk->payload()),
                                         [](DummyData* const) {} // Placeholder deleter.
                                         ),
         sut);
@@ -114,12 +114,11 @@ TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfALambd
     EXPECT_CALL(sut, publishMocked).Times(1);
     // ===== Test ===== //
     auto result = sut.publishResultOf(
-        [](DummyData* allocation, int, float) {
+        [](DummyData* allocation, int intVal) {
             auto data = new (allocation) DummyData();
-            data->val = 777;
+            data->val = intVal;
         },
-        42,
-        77.77);
+        42);
     // ===== Verify ===== //
     EXPECT_EQ(false, result.has_error());
     // ===== Cleanup ===== //
@@ -127,7 +126,7 @@ TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfALambd
     iox::cxx::alignedFree(chunk);
 }
 
-TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfALambdaWithNoAdditionalArguments)
+TEST_F(TypedPublisherTest, CanLoanSamplesAndPublishTheResultOfALambdaWithNoAdditionalArguments)
 {
     // ===== Setup ===== //
     auto chunk =
@@ -152,7 +151,7 @@ TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfALambd
     iox::cxx::alignedFree(chunk);
 }
 
-TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfACallableStructWithNoAdditionalArguments)
+TEST_F(TypedPublisherTest, CanLoanSamplesAndPublishTheResultOfACallableStructWithNoAdditionalArguments)
 {
     // ===== Setup ===== //
     struct CallableStruct
@@ -182,7 +181,7 @@ TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfACalla
     iox::cxx::alignedFree(chunk);
 }
 
-TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfACallableStructWithAdditionalArguments)
+TEST_F(TypedPublisherTest, CanLoanSamplesAndPublishTheResultOfACallableStructWithAdditionalArguments)
 {
     // ===== Setup ===== //
     struct CallableStruct
@@ -223,7 +222,7 @@ void freeFunctionWithAdditionalArgs(DummyData* allocation, int, float)
     data->val = 777;
 }
 
-TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfFunctionPointerWithNoAdditionalArguments)
+TEST_F(TypedPublisherTest, CanLoanSamplesAndPublishTheResultOfFunctionPointerWithNoAdditionalArguments)
 {
     // ===== Setup ===== //
     auto chunk =
@@ -245,7 +244,7 @@ TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfFuncti
     iox::cxx::alignedFree(chunk);
 }
 
-TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfFunctionPointerWithAdditionalArguments)
+TEST_F(TypedPublisherTest, CanLoanSamplesAndPublishTheResultOfFunctionPointerWithAdditionalArguments)
 {
     // ===== Setup ===== //
     auto chunk =
@@ -267,7 +266,7 @@ TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishTheResultOfFuncti
     iox::cxx::alignedFree(chunk);
 }
 
-TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishCopiesOfProvidedValues)
+TEST_F(TypedPublisherTest, CanLoanSamplesAndPublishCopiesOfProvidedValues)
 {
     // ===== Setup ===== //
     auto chunk =
@@ -291,7 +290,7 @@ TEST_F(ExperimentalTypedPublisherTest, CanLoanSamplesAndPublishCopiesOfProvidedV
     iox::cxx::alignedFree(chunk);
 }
 
-TEST_F(ExperimentalTypedPublisherTest, GetsPreviousSampleViaBasePublisher)
+TEST_F(TypedPublisherTest, GetsPreviousSampleViaBasePublisher)
 {
     // ===== Setup ===== //
     EXPECT_CALL(sut, loanPreviousSample).Times(1);
@@ -301,7 +300,7 @@ TEST_F(ExperimentalTypedPublisherTest, GetsPreviousSampleViaBasePublisher)
     // ===== Cleanup ===== //
 }
 
-TEST_F(ExperimentalTypedPublisherTest, OffersViaBasePublisher)
+TEST_F(TypedPublisherTest, OffersViaBasePublisher)
 {
     // ===== Setup ===== //
     EXPECT_CALL(sut, offer).Times(1);
@@ -311,7 +310,7 @@ TEST_F(ExperimentalTypedPublisherTest, OffersViaBasePublisher)
     // ===== Cleanup ===== //
 }
 
-TEST_F(ExperimentalTypedPublisherTest, StopsOffersViaBasePublisher)
+TEST_F(TypedPublisherTest, StopsOffersViaBasePublisher)
 {
     // ===== Setup ===== //
     EXPECT_CALL(sut, stopOffer).Times(1);
@@ -321,7 +320,7 @@ TEST_F(ExperimentalTypedPublisherTest, StopsOffersViaBasePublisher)
     // ===== Cleanup ===== //
 }
 
-TEST_F(ExperimentalTypedPublisherTest, checksIfOfferedViaBasePublisher)
+TEST_F(TypedPublisherTest, checksIfOfferedViaBasePublisher)
 {
     // ===== Setup ===== //
     EXPECT_CALL(sut, isOffered).Times(1);
@@ -331,7 +330,7 @@ TEST_F(ExperimentalTypedPublisherTest, checksIfOfferedViaBasePublisher)
     // ===== Cleanup ===== //
 }
 
-TEST_F(ExperimentalTypedPublisherTest, ChecksIfHasSubscribersViaBasePublisher)
+TEST_F(TypedPublisherTest, ChecksIfHasSubscribersViaBasePublisher)
 {
     // ===== Setup ===== //
     EXPECT_CALL(sut, hasSubscribers).Times(1);

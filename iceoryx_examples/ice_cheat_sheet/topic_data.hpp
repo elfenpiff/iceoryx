@@ -35,7 +35,6 @@ class Sample
 {
   public:
     Sample(cxx::unique_ptr<T>&& samplePtr, PublisherInterface<T>& publisher);
-    /// Creates an empty sample.
     Sample(const Sample<T>&) = delete;
     Sample<T>& operator=(const Sample<T>&) = delete;
     Sample<T>& operator=(Sample<T>&& rhs);
@@ -68,7 +67,6 @@ class Sample
     void publish() noexcept;
 
   protected:
-    bool m_hasOwnership{true};
     cxx::unique_ptr<T> m_samplePtr{nullptr};
     std::reference_wrapper<PublisherInterface<T>> m_publisherRef;
 };
@@ -83,7 +81,6 @@ class Sample<const T>
   public:
     /// Creates an empty sample.
     Sample(cxx::unique_ptr<T>&& samplePtr) noexcept;
-
     Sample(const Sample&) = delete;
     Sample& operator=(const Sample&) = delete;
     Sample(Sample<const T>&& rhs);
