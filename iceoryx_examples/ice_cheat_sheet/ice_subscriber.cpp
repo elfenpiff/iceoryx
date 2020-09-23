@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "iceoryx_posh/popo/subscriber.hpp"
+#include "iceoryx_posh/experimental/popo/untyped_subscriber.hpp"
 #include "iceoryx_posh/runtime/posh_runtime.hpp"
 #include "topic_data.hpp"
 
@@ -20,66 +20,68 @@
 #include <csignal>
 #include <iostream>
 
-bool killswitch = false;
+std::atomic_bool keepRunning{true};
 
-static void sigHandler(int f_sig [[gnu::unused]])
+void receiveDataWithErrorHandling()
 {
-    // caught SIGINT, now exit gracefully
-    killswitch = true;
-}
-
-void receiving()
-{
-    // Create the runtime for registering with the RouDi daemon
-    iox::runtime::PoshRuntime::getInstance("/iox-ex-subscriber-bare-metal");
-
-    // Create a subscriber
-    iox::popo::Subscriber mySubscriber({"Radar", "FrontLeft", "Counter"});
-
-    // The subscriber will not do the subscription before we call subscribe(). The queue size of the subscriber is
-    // provided as parameter
+    iox::runtime::PoshRuntime::getInstance("/myAppName");
+    iox::popo::UntypedSubscriber mySubscriber({"MyService", "MyInstance", "MyEvent"});
     mySubscriber.subscribe(10);
 
-    while (!killswitch)
+    while (keepRunning)
     {
-        // check if we are subscribed
-        if (iox::popo::SubscriptionState::SUBSCRIBED == mySubscriber.getSubscriptionState())
+        mySubscriber.receive()
+            .and_then([](iox::cxx::optional<iox::popo::Sample<const void>>& maybeSample) {
+                maybeSample.and_then([](iox::popo::Sample<const void>& sample) {
+                    std::cout << "Receiving: " << static_cast<const CounterTopic*>(sample.get())->data << std::endl;
+                });
+            })
+            .or_else([](const iox::popo::ChunkReceiveError& errorValue) {
+                // perform error handling
+            });
+    }
+    mySubscriber.unsubscribe();
+}
+
+void receiveDataWithErrorHandlingOldStyle()
+{
+    iox::runtime::PoshRuntime::getInstance("/myAppName");
+    iox::popo::UntypedSubscriber mySubscriber({"MyService", "MyInstance", "MyEvent"});
+    mySubscriber.subscribe(10);
+
+    while (keepRunning)
+    {
+        auto maybeSample = mySubscriber.receive();
+        if (maybeSample.has_error())
         {
-            const void* chunk = nullptr;
-
-            // polling based access to the subscriber
-            // this will return true and the oldest chunk in the queue (FiFo) or false if the queue is empty
-            while (mySubscriber.getChunk(&chunk))
-            {
-                // we know what we expect for the CaPro ID we provided with the subscriber c'tor. So we do a cast here
-                auto sample = static_cast<const CounterTopic*>(chunk);
-
-//                std::cout << "Receiving: " << sample->counter << std::endl;
-
-                // signal the middleware that this chunk was processed and in no more accesssed by the user side
-                mySubscriber.releaseChunk(chunk);
-            }
+            // perform error handling
         }
         else
         {
-            std::cout << "Not subscribed" << std::endl;
+            auto sample = std::move(maybeSample.get_value());
+            if (sample.has_value())
+            {
+                std::cout << "Receiving: " << static_cast<const CounterTopic*>(sample->get())->data << std::endl;
+            }
         }
-
-        // Sleep some time to avoid flooding the system with messages as there's basically no delay in transfer
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 
-    // with unsubscribe we disconnect from the publisher
     mySubscriber.unsubscribe();
 }
 
 int main()
 {
-    // register sigHandler for SIGINT
-    signal(SIGINT, sigHandler);
+    // adjust this line to the example you would like to have
+    auto example = receiveDataWithErrorHandling;
 
-    std::thread rx(receiving);
-    rx.join();
+    std::thread exampleThread(example);
+    std::thread stopMeLater([&] {
+        std::this_thread::sleep_for(std::chrono::seconds(60));
+        keepRunning.store(false);
+    });
+
+    stopMeLater.join();
+    exampleThread.join();
 
     return (EXIT_SUCCESS);
 }

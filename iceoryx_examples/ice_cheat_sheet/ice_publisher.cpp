@@ -61,7 +61,7 @@ void sendDataWithErrorHandlingOldStyle()
         else
         {
             static_cast<CounterTopic*>(sample->get())->data = myData;
-            myPublisher.publish(*sample);
+            myPublisher.publish(std::move(*sample));
         }
     }
 
@@ -96,9 +96,7 @@ void dismissDataWithoutSending()
 
     while (keepRunning)
     {
-        myPublisher.loan(sizeof(CounterTopic)).and_then([&](iox::popo::Sample<void>& sample) {
-            myPublisher.release(sample);
-        });
+        myPublisher.loan(sizeof(CounterTopic));
     }
 
     myPublisher.stopOffer();
@@ -117,7 +115,7 @@ void acquirePreviousSendData()
 
     while (keepRunning)
     {
-        myPublisher.previousSample().and_then([&](iox::popo::Sample<void>& sample) {
+        myPublisher.loanPreviousSample().and_then([&](iox::popo::Sample<void>& sample) {
             static_cast<CounterTopic*>(sample.get())->data = myData;
             sample.publish();
         });
