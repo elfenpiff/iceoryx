@@ -124,6 +124,50 @@ void acquirePreviousSendData()
     myPublisher.stopOffer();
 }
 
+void dynamicSend()
+{
+    iox::runtime::PoshRuntime::getInstance("/myApplicationName");
+    iox::popo::UntypedPublisher myPublisher({"MyService", "MyInstance", "MyEvent"});
+
+    myPublisher.offer();
+    bool offer = true;
+    uint64_t counter = 0U;
+
+    while (keepRunning)
+    {
+        if (offer)
+        {
+            myPublisher.loan(sizeof(CounterTopic))
+                .and_then([](iox::popo::Sample<void>& sample) {
+                    static_cast<CounterTopic*>(sample.get())->data = myData;
+                    sample.publish();
+                })
+                .or_else([](const iox::popo::AllocationError& errorValue) {
+                    // perform error handling
+                });
+        }
+        ++counter;
+        if (counter % 10 == 0)
+        {
+            if (offer)
+            {
+                myPublisher.stopOffer();
+                offer = false;
+            }
+            else
+            {
+                myPublisher.offer();
+                offer = true;
+            }
+        }
+    }
+
+    if (offer)
+    {
+        myPublisher.stopOffer();
+    }
+}
+
 int main()
 {
     // adjust this line to the example you would like to have

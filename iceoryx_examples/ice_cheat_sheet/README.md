@@ -7,8 +7,8 @@
 ## Examples
 - **single send, single receive**
 - **dynamic publish subscribe (offer/stop offer mix)**
-- **subscriber prints message when service is not available**
-- **only send data when there are subscribers**
+  - **subscriber prints message when service is not available**
+  - **only send data when there are subscribers**
 - **send huge chunks efficiently**
 - **1 publisher, 1 subscriber looks for specific service**
 - **n publishers, 1 subscriber looks for specific service**
@@ -86,6 +86,7 @@
             // perform error handling
         });
     ```
+
 - **receive data old school**
     ```cpp
     auto maybeSample = mySubscriber.receive();
@@ -100,5 +101,25 @@
         {
             std::cout << "Receiving: " << static_cast<const CounterTopic*>(sample->get())->data << std::endl;
         }
+    }
+    ```
+
+- **check subscription state**
+    ```cpp
+    if (iox::SubscribeState::SUBSCRIBED == mySubscriber.getSubscriptionState())
+    {
+        mySubscriber.receive()
+            .and_then([](iox::cxx::optional<iox::popo::Sample<const void>>& maybeSample) {
+                maybeSample.and_then([](iox::popo::Sample<const void>& sample) {
+                    std::cout << "Receiving: " << static_cast<const CounterTopic*>(sample.get())->data << std::endl;
+                });
+            })
+            .or_else([](const iox::popo::ChunkReceiveError& errorValue) {
+                // perform error handling
+            });
+    }
+    else
+    {
+        std::cout << "Service is not available." << std::endl;
     }
     ```

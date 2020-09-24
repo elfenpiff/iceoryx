@@ -69,6 +69,35 @@ void receiveDataWithErrorHandlingOldStyle()
     mySubscriber.unsubscribe();
 }
 
+void receiveDataAfterSubscriptionStateChheck()
+{
+    iox::runtime::PoshRuntime::getInstance("/myAppName");
+    iox::popo::UntypedSubscriber mySubscriber({"MyService", "MyInstance", "MyEvent"});
+    mySubscriber.subscribe(10);
+
+    while (keepRunning)
+    {
+        if (iox::SubscribeState::SUBSCRIBED == mySubscriber.getSubscriptionState())
+        {
+            mySubscriber.receive()
+                .and_then([](iox::cxx::optional<iox::popo::Sample<const void>>& maybeSample) {
+                    maybeSample.and_then([](iox::popo::Sample<const void>& sample) {
+                        std::cout << "Receiving: " << static_cast<const CounterTopic*>(sample.get())->data << std::endl;
+                    });
+                })
+                .or_else([](const iox::popo::ChunkReceiveError& errorValue) {
+                    // perform error handling
+                });
+        }
+        else
+        {
+            std::cout << "Service is not available." << std::endl;
+        }
+    }
+
+    mySubscriber.unsubscribe();
+}
+
 int main()
 {
     // adjust this line to the example you would like to have
