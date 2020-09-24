@@ -116,7 +116,7 @@ void acquirePreviousSendData()
     while (keepRunning)
     {
         myPublisher.loanPreviousSample().and_then([&](iox::popo::Sample<void>& sample) {
-            static_cast<CounterTopic*>(sample.get())->data = myData;
+            static_cast<CounterTopic*>(sample.get())->hugeData[2] = 42;
             sample.publish();
         });
     }
@@ -147,7 +147,7 @@ void dynamicSend()
                 });
         }
         ++counter;
-        if (counter % 10 == 0)
+        if (counter % 10U == 0U)
         {
             if (offer)
             {
