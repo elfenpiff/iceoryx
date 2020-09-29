@@ -16,6 +16,7 @@
 #include "iceoryx_posh/runtime/posh_runtime.hpp"
 #include "topic_data.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <thread>
@@ -96,7 +97,9 @@ void dismissDataWithoutSending()
 
     while (keepRunning)
     {
-        myPublisher.loan(sizeof(CounterTopic));
+        {
+            auto sample = myPublisher.loan(sizeof(CounterTopic));
+        } // sample goes out of scope and cleans itself up without sending
     }
 
     myPublisher.stopOffer();
@@ -115,10 +118,20 @@ void acquirePreviousSendData()
 
     while (keepRunning)
     {
-        myPublisher.loanPreviousSample().and_then([&](iox::popo::Sample<void>& sample) {
-            static_cast<CounterTopic*>(sample.get())->hugeData[2] = 42;
-            sample.publish();
-        });
+        myPublisher
+            .loanPreviousSample()
+            // got previous sample, only change updated values
+            .and_then([&](iox::popo::Sample<void>& sample) {
+                static_cast<CounterTopic*>(sample.get())->hugeData[2] = 42;
+                sample.publish();
+            })
+            // someone else is reading the last sample therefore we have to set the whole sample again
+            .or_else([&] {
+                myPublisher.loan(sizeof(CounterTopic)).and_then([](iox::popo::Sample<void>& sample) {
+                    static_cast<CounterTopic*>(sample.get())->data = myData;
+                    sample.publish();
+                });
+            });
     }
 
     myPublisher.stopOffer();
@@ -130,12 +143,11 @@ void dynamicSend()
     iox::popo::UntypedPublisher myPublisher({"MyService", "MyInstance", "MyEvent"});
 
     myPublisher.offer();
-    bool offer = true;
     uint64_t counter = 0U;
 
     while (keepRunning)
     {
-        if (offer)
+        if (myPublisher.isOffered())
         {
             myPublisher.loan(sizeof(CounterTopic))
                 .and_then([](iox::popo::Sample<void>& sample) {
@@ -149,23 +161,44 @@ void dynamicSend()
         ++counter;
         if (counter % 10U == 0U)
         {
-            if (offer)
-            {
-                myPublisher.stopOffer();
-                offer = false;
-            }
-            else
-            {
-                myPublisher.offer();
-                offer = true;
-            }
+            (myPublisher.isOffered()) ? myPublisher.stopOffer() : myPublisher.offer();
         }
     }
 
-    if (offer)
+    if (myPublisher.isOffered())
     {
         myPublisher.stopOffer();
     }
+}
+
+void multiplePublishersSendData()
+{
+    iox::runtime::PoshRuntime::getInstance("/myApplicationName");
+
+    constexpr uint64_t nPub = 3;
+    iox::cxx::vector<iox::popo::UntypedPublisher, nPub> myPublisher;
+    myPublisher.emplace_back(iox::capro::ServiceDescription{"MyService", "MyInstance1", "MyEvent"});
+    myPublisher.emplace_back(iox::capro::ServiceDescription{"MyService", "MyInstance2", "MyEvent"});
+    myPublisher.emplace_back(iox::capro::ServiceDescription{"MyService", "MyInstance3", "MyEvent"});
+
+    std::for_each(myPublisher.begin(), myPublisher.end(), [](iox::popo::UntypedPublisher& pub) { pub.offer(); });
+
+    while (keepRunning)
+    {
+        for (auto& pub : myPublisher)
+        {
+            pub.loan(sizeof(CounterTopic))
+                .and_then([](iox::popo::Sample<void>& sample) {
+                    static_cast<CounterTopic*>(sample.get())->data = myData;
+                    sample.publish();
+                })
+                .or_else([](const iox::popo::AllocationError& errorValue) {
+                    // perform error handling
+                });
+        }
+    }
+
+    std::for_each(myPublisher.begin(), myPublisher.end(), [](iox::popo::UntypedPublisher& pub) { pub.stopOffer(); });
 }
 
 int main()

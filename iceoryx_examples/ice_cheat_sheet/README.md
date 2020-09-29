@@ -5,21 +5,120 @@
  - subscriber inherit from condition?
 
 ## Examples
-- **single send, single receive**
+You can find the complete example code in `ice_publisher.cpp` and `ice_subscriber.cpp`.
+**Hint** Theses examples show a work in progress. The APIs for the `publisher` and `subscriber` are finished but we still have to integrate the new building blocks into RouDi. Till then the examples will not work.
+- **single send, single receive (`loan`, `receive`)**
+    ```cpp
+    // publisher
+    myPublisher.loan(sizeof(CounterTopic))
+            .and_then([](iox::popo::Sample<void>& sample) {
+                static_cast<CounterTopic*>(sample.get())->data = myData;
+                sample.publish();
+            })
+            .or_else([](const iox::popo::AllocationError& errorValue) {
+                // perform error handling
+            });
+
+
+    // subscriber
+    mySubscriber.receive()
+        .and_then([](iox::cxx::optional<iox::popo::Sample<const void>>& maybeSample) {
+            maybeSample.and_then([](iox::popo::Sample<const void>& sample) {
+                std::cout << "Receiving: " << static_cast<const CounterTopic*>(sample.get())->data << std::endl;
+            });
+        })
+        .or_else([](const iox::popo::ChunkReceiveError& errorValue) {
+            // perform error handling
+        });
+    ```
+
 - **dynamic publish subscribe (offer/stop offer mix)**
-  - **subscriber prints message when service is not available**
-  - **only send data when there are subscribers**
-- **send huge chunks efficiently**
-- **1 publisher, 1 subscriber looks for specific service**
-- **n publishers, 1 subscriber looks for specific service**
-- **dismiss data without sending**
+  - **subscriber prints message when service is not available (`getSubscriptionState`)**
+    ```cpp
+    // subscriber
+    if (iox::SubscribeState::SUBSCRIBED == mySubscriber.getSubscriptionState())
+    {
+        // receive data
+    }
+    else
+    {
+        std::cout << "Service is not available." << std::endl;
+    }
+    ```
+  
+  - **only send data when there are subscribers (`hasSubscribers`)**
+    ```cpp
+    // publisher
+    if (myPublisher.hasSubscribers())
+    {
+        // send data
+    }
+    ```
+
+- **send huge chunks efficiently (`loanPreviousSample`)**
+    ```cpp
+    // publisher
+    // 1) send data
+    // 2) acquire previous data and change minor contents
+    myPublisher
+        .loanPreviousSample()
+        // got previous sample, only change updated values
+        .and_then([&](iox::popo::Sample<void>& sample) {
+            static_cast<CounterTopic*>(sample.get())->hugeData[2] = 42;
+            sample.publish();
+        })
+        // someone else is reading the last sample therefore we have to set the whole sample again
+        .or_else([&] {
+            myPublisher.loan(sizeof(CounterTopic)).and_then([](iox::popo::Sample<void>& sample) {
+                static_cast<CounterTopic*>(sample.get())->data = myData;
+                sample.publish();
+            });
+        });
+    ```
+
+- **1 publisher, 1 subscriber looks for specific service (`findService`)**
+    ```cpp
+    // subscriber
+    iox::runtime::InstanceContainer instanceContainer;
+    iox::runtime::PoshRuntime::getInstance("/myAppName")
+        .findService({"MyService", iox::capro::AnyInstanceString}, instanceContainer)
+        .and_then([instanceContainer]() {
+            if (!instanceContainer.empty())
+            {
+                // receive data
+            }
+        })
+        .or_else([](iox::Error) {
+            // perform error handling
+        });
+    ```
+
+- **n publishers, 1 subscriber looks for specific service (`findService`)**
+    
+    As example above but with multiple publishers which could send data as shown in the 'single send, single receive' example. 
+
+- **dismiss data without sending (`loan`)**
+    ```cpp
+    {
+        auto sample = myPublisher.loan(sizeof(CounterTopic));
+    } // sample goes out of scope and cleans itself up without sending
+    ```
 
 ## [NOT YET IMPLEMENTED] UntypedPublisher short
 **Hint** Theses examples show a work in progress. The API for the `publisher` is finished but we still have to integrate the new building blocks into RouDi. Till then the examples will not work.
 
 - **get unique publisher id**
-- **send raw memory sample**
+    ```cpp
+    iox::UniquePortId uid = myPublisher.getUid();
+    ```
+
 - **check offer state**
+    ```cpp
+    if (myPublisher.isOffered())
+    {
+        // send data
+    }
+    ```
 
 - **send data**
     ```cpp
@@ -32,6 +131,7 @@
                 // perform error handling
             });
     ```
+
 - **send data old school**
     ```cpp
     auto sample = myPublisher.loan(sizeof(CounterTopic));
@@ -65,10 +165,20 @@
 
  - **acquire previous data and change minor contents**
     ```cpp
-    myPublisher.loanPreviousSample().and_then([&](iox::popo::Sample<void>& sample) {
-        static_cast<CounterTopic*>(sample.get())->hugeData[2] = 42;
-        sample.publish();
-    });
+    myPublisher
+        .loanPreviousSample()
+        // got previous sample, only change updated values
+        .and_then([&](iox::popo::Sample<void>& sample) {
+            static_cast<CounterTopic*>(sample.get())->hugeData[2] = 42;
+            sample.publish();
+        })
+        // someone else is reading the last sample therefore we have to set the whole sample again
+        .or_else([&] {
+            myPublisher.loan(sizeof(CounterTopic)).and_then([](iox::popo::Sample<void>& sample) {
+                static_cast<CounterTopic*>(sample.get())->data = myData;
+                sample.publish();
+            });
+        });
     ```
 
 ## [NOT YET IMPLEMENTED] UntypedSubscriber short

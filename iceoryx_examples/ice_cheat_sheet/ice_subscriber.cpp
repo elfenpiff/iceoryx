@@ -69,7 +69,7 @@ void receiveDataWithErrorHandlingOldStyle()
     mySubscriber.unsubscribe();
 }
 
-void receiveDataAfterSubscriptionStateChheck()
+void receiveDataAfterSubscriptionStateCheck()
 {
     iox::runtime::PoshRuntime::getInstance("/myAppName");
     iox::popo::UntypedSubscriber mySubscriber({"MyService", "MyInstance", "MyEvent"});
@@ -96,6 +96,45 @@ void receiveDataAfterSubscriptionStateChheck()
     }
 
     mySubscriber.unsubscribe();
+}
+
+void subscribeAfterFindService()
+{
+    iox::runtime::InstanceContainer instanceContainer;
+    iox::capro::IdString service = "MyService";
+    iox::runtime::PoshRuntime::getInstance("/myAppName")
+        .findService({service, iox::capro::AnyInstanceString}, instanceContainer)
+        .and_then([instanceContainer, service]() {
+            if (!instanceContainer.empty())
+            {
+                iox::popo::UntypedSubscriber mySubscriber({service, instanceContainer[0], "MyEvent"});
+                mySubscriber.subscribe(10);
+                while (keepRunning)
+                {
+                    if (iox::SubscribeState::SUBSCRIBED == mySubscriber.getSubscriptionState())
+                    {
+                        mySubscriber.receive()
+                            .and_then([](iox::cxx::optional<iox::popo::Sample<const void>>& maybeSample) {
+                                maybeSample.and_then([](iox::popo::Sample<const void>& sample) {
+                                    std::cout << "Receiving: " << static_cast<const CounterTopic*>(sample.get())->data
+                                              << std::endl;
+                                });
+                            })
+                            .or_else([](const iox::popo::ChunkReceiveError& errorValue) {
+                                // perform error handling
+                            });
+                    }
+                    else
+                    {
+                        std::cout << "Service is not available." << std::endl;
+                    }
+                }
+                mySubscriber.unsubscribe();
+            }
+        })
+        .or_else([](iox::Error) {
+            // perform error handling
+        });
 }
 
 int main()
